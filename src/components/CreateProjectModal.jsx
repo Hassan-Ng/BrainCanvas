@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { X, ArrowLeft, ArrowRight, Search, User, Lock, Globe } from 'lucide-react'
-import { mockUsers } from '../data/users'
 
 export default function CreateProjectModal({ onClose, onCreateProject, theme = 'dark' }) {
   const [currentStep, setCurrentStep] = useState(1)
@@ -11,11 +10,39 @@ export default function CreateProjectModal({ onClose, onCreateProject, theme = '
     collaborators: []
   })
   const [searchQuery, setSearchQuery] = useState('')
+  const [allUsers, setAllUsers] = useState([])
 
-  const filteredUsers = mockUsers.filter(user =>
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const currentUser = JSON.parse(localStorage.getItem('user')); // get current user from localStorage
+        
+        const res = await fetch('https://braincanvasapi-production.up.railway.app/api/users', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+  
+        if (!res.ok) throw new Error('Failed to fetch users');
+        const data = await res.json();
+  
+        // ✅ exclude current user
+        const filtered = data.filter(user => user.id !== currentUser?._id);
+  
+        setAllUsers(filtered);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+  
+    fetchUsers();
+  }, []);  
+
+  const filteredUsers = allUsers.filter(user =>
     user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  );  
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -306,9 +333,19 @@ export default function CreateProjectModal({ onClose, onCreateProject, theme = '
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                               theme === 'dark' ? 'bg-zinc-600' : 'bg-gray-300'
                             }`}>
-                              <User className={`w-4 h-4 ${
-                                theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
-                              }`} />
+                              {user?.avatar ? (
+                                <img
+                                  src={user.avatar}
+                                  alt={user.name}
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex items-center justify-center w-full h-full">
+                                  <User className={`w-4 h-4 ${
+                                    theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
+                                  }`} />
+                                </div>
+                              )}
                             </div>
                             <div>
                               <div className={`text-sm font-medium ${
@@ -367,9 +404,19 @@ export default function CreateProjectModal({ onClose, onCreateProject, theme = '
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                             theme === 'dark' ? 'bg-zinc-600' : 'bg-gray-300'
                           }`}>
-                            <User className={`w-4 h-4 ${
-                              theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
-                            }`} />
+                            {user?.avatar ? (
+                              <img
+                                src={user.avatar}
+                                alt={user.name}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center w-full h-full">
+                                <User className={`w-4 h-4 ${
+                                  theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
+                                }`} />
+                              </div>
+                            )}
                           </div>
                           <div className="flex-1 text-left">
                             <div className={`text-sm font-medium ${

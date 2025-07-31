@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Sparkles, FileText, Search, Users, MoreHorizontal, Layers, Home, FolderOpen, Clock, Star, Settings, User, ChevronDown, Sun, Moon, LogOut, HelpCircle, Heart, Trash2, Copy, Lock, Unlock, Compass, Folder, X } from 'lucide-react'
-import { mockProjects } from '../data/projects'
 import { mockFolders } from '../data/folders'
 import CreateProjectModal from './CreateProjectModal'
 import CreateFolderModal from './CreateFolderModal'
@@ -25,6 +24,19 @@ export default function ProjectDashboard() {
   // Mock folders data (assuming folders might still be local or fetched separately)
   const [folders, setFolders] = useState(mockFolders);
 
+  const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+      } catch (e) {
+        console.error('Failed to parse user from localStorage')
+      }
+    }
+  }, [])
+
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.classList.toggle('light', theme === 'light')
@@ -35,17 +47,27 @@ export default function ProjectDashboard() {
     const fetchProjects = async () => {
       try {
         setLoadingProjects(true);
-        setProjectsError(null); // Clear any previous errors
-
-        const response = await fetch('http://braincanvasapi-production.up.railway.app/api/projects');
-
+        setProjectsError(null);
+  
+        const token = localStorage.getItem('token'); // or from auth context/zustand if you're using one
+        if (!token) {
+          setProjectsError('User not authenticated.');
+          return;
+        }
+  
+        const response = await fetch('https://braincanvasapi-production.up.railway.app/api/projects', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+  
         if (!response.ok) {
-          // If the HTTP response status is not 2xx, throw an error
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-
+  
         const data = await response.json();
-        setProjects(data); // Update the projects state with fetched data
+        setProjects(data);
       } catch (error) {
         console.error('Error fetching projects:', error);
         setProjectsError('Failed to load projects. Please try again later.');
@@ -53,9 +75,9 @@ export default function ProjectDashboard() {
         setLoadingProjects(false);
       }
     };
-
+  
     fetchProjects();
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, []);  
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -81,23 +103,30 @@ export default function ProjectDashboard() {
   }, [])
 
   const getFilteredProjects = () => {
-    let filteredProjects = projects
-    
+    let filteredProjects = projects;
+  
     if (activeTab === 'Explore') {
-      filteredProjects = projects.filter(p => p.isPublic)
+      filteredProjects = projects.filter(p => p.isPublic);
     } else if (activeTab === 'Created by Me') {
-      filteredProjects = projects.filter(p => !p.isPublic)
+      filteredProjects = projects.filter(p => !p.isPublic);
     }
-    
+  
     if (searchQuery) {
-      filteredProjects = filteredProjects.filter(p => 
+      filteredProjects = filteredProjects.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      );
     }
-    
-    return filteredProjects
-  }
+  
+    // ✅ Sort by edited date (latest first)
+    filteredProjects = filteredProjects.sort((a, b) => {
+      const aTime = new Date(a.updatedAt || a.edited).getTime();
+      const bTime = new Date(b.updatedAt || b.edited).getTime();
+      return bTime - aTime;
+    });
+  
+    return filteredProjects;
+  };  
 
   const filteredProjects = getFilteredProjects()
 
@@ -136,23 +165,42 @@ export default function ProjectDashboard() {
     setShowCreateFolderModal(false)
   }
 
-  const handleCreateProject = (projectData) => {
-    const newProject = {
-      id: Date.now(),
-      name: projectData.name,
-      description: projectData.description || '',
-      location: 'Projects',
-      created: 'Just now',
-      edited: 'Just now',
-      comments: 0,
-      isFavorite: false,
-      isPublic: projectData.isPublic || false,
-      collaborators: [{ active: true }],
-      canvasData: { shapes: [] }
+  const handleCreateProject = async (projectData) => {
+    try {
+      const token = localStorage.getItem('token') // get JWT for auth
+      if (!token) {
+        throw new Error('No token found. User not authenticated.')
+      }
+  
+      const response = await fetch('https://braincanvasapi-production.up.railway.app/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: projectData.name,
+          description: projectData.description || '',
+          isPublic: projectData.isPublic || false,
+          collaboratorIds: [] // optional: you can pass selected user IDs here
+        })
+      })
+  
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create project')
+      }
+  
+      const newProject = await response.json()
+  
+      // Add to local state (optional if you refetch the full list after creation)
+      setProjects(prev => [newProject, ...prev])
+      setShowCreateModal(false)
+    } catch (err) {
+      console.error('Error creating project:', err.message)
+      alert(`Failed to create project: ${err.message}`)
     }
-    setProjects(prev => [...prev, newProject])
-    setShowCreateModal(false)
-  }
+  }  
 
   const shortcuts = [
     { key: 'Ctrl/Cmd + K', description: 'Quick search' },
@@ -231,23 +279,34 @@ export default function ProjectDashboard() {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className={`w-8 h-8 rounded-full overflow-hidden ${
                 theme === 'dark' ? 'bg-zinc-600' : 'bg-gray-300'
               }`}>
-                <User className={`w-4 h-4 ${
-                  theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
-                }`} />
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <User className={`w-4 h-4 ${
+                      theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
+                    }`} />
+                  </div>
+                )}
               </div>
+
               <div className="flex-1 text-left">
                 <div className={`text-sm font-medium ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  Guest User
+                  {user ? `${user.firstName} ${user.lastName}` : 'Guest User'}
                 </div>
                 <div className={`text-xs ${
                   theme === 'dark' ? 'text-zinc-400' : 'text-gray-500'
                 }`}>
-                  Local session
+                  {user ? user.email : 'Local session'}
                 </div>
               </div>
               <ChevronDown className={`w-4 h-4 transition-transform ${
@@ -296,7 +355,11 @@ export default function ProjectDashboard() {
                   }`} />
 
                   <button
-                    onClick={() => navigate('/signin')}
+                    onClick={() => {
+                      localStorage.removeItem("token");
+                      localStorage.removeItem("user");
+                      navigate("/signin");
+                    }}
                     className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
                       theme === 'dark'
                         ? 'text-red-400 hover:bg-zinc-800'

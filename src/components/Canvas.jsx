@@ -12,7 +12,7 @@ function Canvas() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   const [selectedTool, setSelectedTool] = useState('pointer');
@@ -26,16 +26,38 @@ function Canvas() {
   const mode = 'editor';
 
   useEffect(() => {
-    // Load project data from mock data
-    const projectId = parseInt(id);
-    const foundProject = mockProjects.find(p => p.id === projectId);
-    
-    if (foundProject) {
-      setProject(foundProject);
-      setCanvasData(foundProject.canvasData || { shapes: [] });
-    } else {
-      setError('Project not found');
-    }
+    const fetchProject = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+  
+        if (!res.ok) {
+          if (res.status === 404) {
+            setError('Project not found');
+          } else if (res.status === 403) {
+            setError('Unauthorized access to this project');
+          } else {
+            setError('Failed to fetch project');
+          }
+          return;
+        }
+  
+        const data = await res.json();
+        setProject(data);
+        setCanvasData(data.canvasData || { shapes: [] });
+      } catch (err) {
+        console.error(err);
+        setError('An error occurred while fetching the project');
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchProject();
   }, [id]);
 
   useEffect(() => {
@@ -51,8 +73,9 @@ function Canvas() {
   if (loading) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-[#171717] text-white">
-        <div className="text-center">
-          <div className="text-2xl font-bold mb-4">Loading project...</div>
+        <div className="text-center animate-pulse">
+          <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin mb-4 mx-auto"></div>
+          <p className="text-lg">Loading project...</p>
         </div>
       </div>
     );

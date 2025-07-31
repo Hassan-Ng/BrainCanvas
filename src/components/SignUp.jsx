@@ -19,6 +19,13 @@ export default function SignUp({ theme = 'dark' }) {
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate('/'); // redirect if already logged in
+    }
+  }, []);  
+
+  useEffect(() => {
     setMounted(true)
   }, [])
 
@@ -58,18 +65,47 @@ export default function SignUp({ theme = 'dark' }) {
   }
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!validateForm()) return
-    
-    setIsLoading(true)
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    setIsLoading(false)
-    navigate('/')
-  }
+    e.preventDefault();
+  
+    if (!validateForm()) return;
+  
+    setIsLoading(true);
+  
+    try {
+      const response = await fetch('https://braincanvasapi-production.up.railway.app/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          firstName: formData.firstName,
+          lastName: formData.lastName
+        })
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        setIsLoading(false);
+        setErrors({ email: data.error || 'Signup failed' });
+        return;
+      }
+  
+      // Save token and user info in localStorage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+  
+      // Redirect to homepage
+      navigate('/');
+    } catch (error) {
+      console.error('Signup error:', error);
+      setErrors({ email: 'Something went wrong. Try again later.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };  
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))

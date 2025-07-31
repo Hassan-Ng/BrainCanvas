@@ -20,11 +20,36 @@ export default function SignIn({ theme = 'dark' }) {
     e.preventDefault()
     setIsLoading(true)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // API call to sign in
+    try {
+      const res = await fetch("https://braincanvasapi-production.up.railway.app/api/auth/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(formData)
+      });
     
-    setIsLoading(false)
-    navigate('/')
+      const data = await res.json();
+    
+      if (!res.ok) {
+        alert(data.error || "Sign in failed");
+        setIsLoading(false);
+        return;
+      }
+    
+      // Store token and user info in localStorage or context
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+    
+      // Redirect to homepage
+      navigate("/");
+    } catch (err) {
+      console.error("Login error:", err);
+      alert("Server error, please try again later.");
+    } finally {
+      setIsLoading(false);
+    }    
   }
 
   const handleChange = (field, value) => {
