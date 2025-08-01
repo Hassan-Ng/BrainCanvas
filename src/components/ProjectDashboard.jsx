@@ -224,6 +224,10 @@ export default function ProjectDashboard() {
     }
   };
 
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark')
+  }
+
   const handleCreateProject = async (projectData) => {
     try {
       const token = localStorage.getItem('token') // get JWT for auth
