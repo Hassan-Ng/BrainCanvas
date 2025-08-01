@@ -4,6 +4,7 @@ import { Plus, Sparkles, FileText, Search, Users, MoreHorizontal, Layers, Home, 
 import { mockFolders } from '../data/folders'
 import CreateProjectModal from './CreateProjectModal'
 import CreateFolderModal from './CreateFolderModal'
+import ConfirmDialog from './ConfirmDialog'
 
 export default function ProjectDashboard() {
   const navigate = useNavigate()
@@ -15,6 +16,18 @@ export default function ProjectDashboard() {
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showHelpModal, setShowHelpModal] = useState(false)
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false)
+
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    confirmLabel: '',
+    variant: 'primary',
+    onConfirm: null,
+  });
+
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // State to hold the fetched projects
   const [projects, setProjects] = useState([]);
@@ -103,30 +116,40 @@ export default function ProjectDashboard() {
   }, [])
 
   const getFilteredProjects = () => {
-    let filteredProjects = projects;
-  
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    // Decode token to get user ID
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const userId = payload.id || payload._id;
+
+    let filteredProjects = [];
+
     if (activeTab === 'Explore') {
       filteredProjects = projects.filter(p => p.isPublic);
-    } else if (activeTab === 'Created by Me') {
-      filteredProjects = projects.filter(p => !p.isPublic);
+    } else if (activeTab === 'Starred') {
+      filteredProjects = projects.filter(p => p.isFavorite === true);
+    } else {
+      // Default to user's own projects (Home, Recents, Folders)
+      filteredProjects = projects.filter(p => p.authorId === userId);
     }
-  
+
     if (searchQuery) {
       filteredProjects = filteredProjects.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-  
-    // ✅ Sort by edited date (latest first)
+
+    // Sort by edited date (latest first)
     filteredProjects = filteredProjects.sort((a, b) => {
       const aTime = new Date(a.updatedAt || a.edited).getTime();
       const bTime = new Date(b.updatedAt || b.edited).getTime();
       return bTime - aTime;
     });
-  
+
     return filteredProjects;
-  };  
+  };
 
   const filteredProjects = getFilteredProjects()
 
@@ -143,27 +166,63 @@ export default function ProjectDashboard() {
     })
   }
 
-  const handleToggleFavorite = (projectId) => {
-    setProjects(prev => prev.map(p => 
-      p.id === projectId ? { ...p, isFavorite: !p.isFavorite } : p
-    ))
-    setContextMenu(null)
-  }
+  const handleDeleteProject = async (projectId) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
-  }
+    const confirmed = window.confirm("Are you sure you want to delete this project?");
+    if (!confirmed) return;
 
-  const handleCreateFolder = (folderData) => {
-    const newFolder = {
-      id: Date.now(),
-      name: folderData.name,
-      color: folderData.color || '#3B82F6',
-      count: 0
+    try {
+      const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete project');
+      }
+
+      // ✅ Update local state
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      setContextMenu(null); // Close context menu
+    } catch (err) {
+      console.error('Delete failed:', err.message);
+      alert('Could not delete the project: ' + err.message);
     }
-    setFolders(prev => [...prev, newFolder])
-    setShowCreateFolderModal(false)
-  }
+  };
+
+  const handleToggleFavorite = async (projectId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${projectId}/favorite`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) throw new Error('Failed to toggle favorite');
+
+      const data = await res.json();
+
+      // Update local state
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === projectId ? { ...p, isFavorite: data.isFavorite } : p
+        )
+      );
+
+      // Also close context menu if needed
+      setContextMenu(null);
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+    }
+  };
 
   const handleCreateProject = async (projectData) => {
     try {
@@ -240,7 +299,7 @@ export default function ProjectDashboard() {
               { id: 'All', icon: Home, label: 'Home' },
               { id: 'Explore', icon: Compass, label: 'Explore' },
               { id: 'Recents', icon: Clock, label: 'Recent' },
-              { id: 'Created by Me', icon: Star, label: 'Starred' },
+              { id: 'Starred', icon: Star, label: 'Starred' },
               { id: 'Folders', icon: FolderOpen, label: 'Folders' }
             ].map(({ id, icon: Icon, label }) => (
               <button
@@ -356,9 +415,18 @@ export default function ProjectDashboard() {
 
                   <button
                     onClick={() => {
-                      localStorage.removeItem("token");
-                      localStorage.removeItem("user");
-                      navigate("/signin");
+                      setConfirmDialog({
+                        open: true,
+                        title: 'Log Out',
+                        message: 'Are you sure you want to sign out?',
+                        confirmLabel: 'Sign Out',
+                        variant: 'danger',
+                        onConfirm: () => {
+                          localStorage.removeItem('token');
+                          localStorage.removeItem('user');
+                          navigate('/signin');
+                        },
+                      });
                     }}
                     className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
                       theme === 'dark'
@@ -875,29 +943,109 @@ export default function ProjectDashboard() {
             <Copy className="w-4 h-4 mr-3" />
             Duplicate
           </button>
-          <button
-            className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-300 hover:bg-zinc-800 hover:text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {contextMenu.project.isPublic ? <Lock className="w-4 h-4 mr-3" /> : <Unlock className="w-4 h-4 mr-3" />}
-            Make {contextMenu.project.isPublic ? 'private' : 'public'}
-          </button>
-          <div className={`border-t my-1 ${
-            theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
-          }`} />
-          <button
-            className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
-              theme === 'dark'
-                ? 'text-red-400 hover:bg-zinc-800'
-                : 'text-red-600 hover:bg-gray-100'
-            }`}
-          >
-            <Trash2 className="w-4 h-4 mr-3" />
-            Delete
-          </button>
+
+          {/* ✅ Show Delete only if user is author */}
+          {user && contextMenu.project.authorId === user._id && (
+            <>
+              <button
+                onClick={() => {
+                  const isPublic = contextMenu.project.isPublic;
+                  const label = isPublic ? 'private' : 'public';
+
+                  setConfirmDialog({
+                    open: true,
+                    title: `Make Project ${label}`,
+                    message: `Are you sure you want to make "${contextMenu.project.name}" ${label}?`,
+                    confirmLabel: `Make ${label}`,
+                    variant: 'primary',
+                    onConfirm: async () => {
+                      const token = localStorage.getItem('token');
+                      try {
+                        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${contextMenu.project.id}`, {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({ isPublic: !isPublic }),
+                        });
+
+                        if (!res.ok) throw new Error('Failed to update project');
+
+                        const updated = await res.json();
+                        setProjects(prev =>
+                          prev.map(p => (p.id === updated._id || p.id === updated.id ? {
+                            ...p,
+                            isPublic: updated.isPublic,
+                            updatedAt: updated.updatedAt,
+                          } : p))
+                        );
+                      } catch (err) {
+                        console.error('Update failed:', err);
+                      } finally {
+                        setConfirmDialog(prev => ({ ...prev, open: false }));
+                      }
+                    },
+                  });
+
+                  setContextMenu(null);
+                }}
+                className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
+                  theme === 'dark'
+                    ? 'text-gray-300 hover:bg-zinc-800 hover:text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {contextMenu.project.isPublic ? <Lock className="w-4 h-4 mr-3" /> : <Unlock className="w-4 h-4 mr-3" />}
+                Make {contextMenu.project.isPublic ? 'private' : 'public'}
+              </button>
+
+              <div className={`border-t my-1 ${
+                theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
+              }`} />
+
+              <button
+                onClick={() => {
+                  const project = contextMenu.project;
+                  setContextMenu(null);
+
+                  setConfirmDialog({
+                    open: true,
+                    title: 'Delete Project',
+                    message: `Are you sure you want to delete "${project.name}"? This action cannot be undone.`,
+                    confirmLabel: 'Delete',
+                    variant: 'danger',
+                    onConfirm: async () => {
+                      const token = localStorage.getItem('token');
+                      try {
+                        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${project.id}`, {
+                          method: 'DELETE',
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                          },
+                        });
+
+                        if (!res.ok) throw new Error('Failed to delete project');
+                        setProjects(prev => prev.filter(p => p.id !== project.id));
+                      } catch (err) {
+                        console.error('Delete failed:', err);
+                      } finally {
+                        setConfirmDialog(prev => ({ ...prev, open: false }));
+                      }
+                    },
+                  });
+                }}
+                className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
+                  theme === 'dark'
+                    ? 'text-red-400 hover:bg-zinc-800'
+                    : 'text-red-600 hover:bg-gray-100'
+                }`}
+              >
+                <Trash2 className="w-4 h-4 mr-3" />
+                Delete
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -918,6 +1066,67 @@ export default function ProjectDashboard() {
           theme={theme}
         />
       )}
+
+      {showDeleteDialog && projectToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`w-full max-w-md p-6 rounded-lg shadow-lg ${
+            theme === 'dark' ? 'bg-zinc-900 text-white' : 'bg-white text-gray-900'
+          }`}>
+            <h2 className="text-lg font-semibold mb-4">Delete Project</h2>
+            <p className="mb-6">Are you sure you want to delete <strong>{projectToDelete.name}</strong>? This action cannot be undone.</p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  theme === 'dark' ? 'bg-zinc-700 hover:bg-zinc-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem('token');
+                  try {
+                    const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${projectToDelete.id}`, {
+                      method: 'DELETE',
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                      },
+                    });
+
+                    if (!res.ok) {
+                      const data = await res.json();
+                      throw new Error(data.error || 'Failed to delete project');
+                    }
+
+                    setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
+                  } catch (err) {
+                    console.error('Failed to delete project:', err.message);
+                    // optionally: show toast error
+                  } finally {
+                    setShowDeleteDialog(false);
+                    setProjectToDelete(null);
+                  }
+                }}
+                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        theme={theme}
+      />
     </div>
   )
 }

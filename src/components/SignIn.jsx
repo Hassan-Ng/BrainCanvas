@@ -59,12 +59,10 @@ export default function SignIn({ theme = 'dark' }) {
   return (
     <div className={`min-h-screen flex transition-all duration-700 ${
       theme === 'dark' ? 'bg-[#171717]' : 'bg-gray-50'
-    } ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    }`}>
       {/* Left Panel - Hero Section */}
       <div className='w-1/2 p-4'>
         <div className={`w-full h-full relative overflow-hidden rounded-3xl transition-all duration-1000 ${
-          mounted ? 'translate-x-0' : '-translate-x-full'
-        } ${
           theme === 'dark' 
             ? 'bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900' 
             : 'bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800'
@@ -75,7 +73,7 @@ export default function SignIn({ theme = 'dark' }) {
           
           <div className="relative z-10 flex flex-col justify-center items-center text-center px-12 text-white h-full">
             <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-8 transition-all duration-1000 delay-300 ${
-              mounted ? 'scale-100 rotate-0' : 'scale-0 rotate-180'
+              mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             } ${theme === 'dark' ? 'bg-blue-600' : 'bg-white/20 backdrop-blur-sm'}`}>
               <Layers className="w-10 h-10 text-white" />
             </div>
@@ -111,11 +109,9 @@ export default function SignIn({ theme = 'dark' }) {
       </div>
 
       {/* Right Panel - Sign In Form */}
-      <div className={`w-1/2 flex items-center justify-center p-12 transition-all duration-1000 delay-300 ${
-        mounted ? 'translate-x-0' : 'translate-x-full'
-      } ${theme === 'dark' ? 'bg-[#171717]' : 'bg-white'}`}>
+      <div className={`w-1/2 flex items-center justify-center p-12 ${theme === 'dark' ? 'bg-[#171717]' : 'bg-white'}`}>
         <div className={`w-full max-w-md transition-all duration-1000 delay-600 ${
-          mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          mounted ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-20'
         }`}>
           {/* Header */}
           <div className="text-center mb-8">
