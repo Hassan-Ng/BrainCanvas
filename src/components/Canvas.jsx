@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Whiteboard from './Whiteboard';
 import ToolBar from './ToolBar';
@@ -7,6 +7,7 @@ import UserMenu from './UserMenu';
 import Header from './Header';
 import HelpButton from './HelpButton';
 import { mockProjects } from '../data/projects';
+import Toast from './Toast';
 
 function Canvas() {
   const { id } = useParams();
@@ -20,10 +21,53 @@ function Canvas() {
   const [theme, setTheme] = useState('dark');
   const [canvasData, setCanvasData] = useState({ shapes: [] });
 
+  const [toast, setToast] = useState({ visible: false, message: '', variant: 'success' });
+
+  const previousShapesRef = useRef([]);
 
   // Always allow editing since there's no user management
   const canEdit = true;
   const mode = 'editor';
+
+  const saveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (!project || !project._id) return;
+  
+    // Clear any previously scheduled save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+  
+    // Schedule new save
+    saveTimeoutRef.current = setTimeout(async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+  
+      try {
+        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${project._id}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ canvasData })
+        });
+  
+        if (!res.ok) {
+          console.error('Auto-save failed:', await res.text());
+        } else {
+          console.log('Canvas auto-saved!');
+          setToast({ visible: true, message: 'Canvas auto-saved!', variant: 'success' });
+        }
+      } catch (err) {
+        console.error('Auto-save error:', err);
+      }
+    }, 1500); // ⏱️ debounce: 1500ms after last change
+  
+    return () => {
+      clearTimeout(saveTimeoutRef.current);
+    };
+  }, [canvasData, project]);  
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -103,49 +147,67 @@ function Canvas() {
   }
 
   return (
-    <div className={`w-full h-screen relative transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-[#171717]' : 'bg-gray-100'
-    }`}>
-      <Whiteboard 
-        selectedTool={selectedTool} 
-        style={style} 
-        theme={theme}
-        initialShapes={canvasData.shapes || []}
-        readOnly={false}
-        onShapesChange={(shapes) => setCanvasData({ shapes })}
-      />
-      
-      <ColorPanel onChange={(newStyle) => setStyle(newStyle)} theme={theme} />
-      
-      <Header theme={theme} project={project} />
-      
-      <div className="absolute top-20 bottom-3 left-3 flex flex-col justify-between z-50">
-        <ToolBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} theme={theme} />
-        <div className="flex flex-col gap-2 items-center">
-          <HelpButton theme={theme} />
-          <UserMenu theme={theme} onToggleTheme={toggleTheme} />
+    <>
+      <div className={`w-full h-screen relative transition-colors duration-300 ${
+        theme === 'dark' ? 'bg-[#171717]' : 'bg-gray-100'
+      }`}>
+        <Whiteboard 
+          selectedTool={selectedTool} 
+          style={style} 
+          theme={theme}
+          initialShapes={canvasData.shapes || []}
+          readOnly={false}
+          onShapesChange={(shapes) => {
+            const prev = JSON.stringify(previousShapesRef.current);
+            const curr = JSON.stringify(shapes);
+          
+            if (prev !== curr) {
+              previousShapesRef.current = shapes;
+              setCanvasData({ shapes });
+            }
+          }}        
+        />
+        
+        <ColorPanel onChange={(newStyle) => setStyle(newStyle)} theme={theme} />
+        
+        <Header theme={theme} project={project} />
+        
+        <div className="absolute top-20 bottom-3 left-3 flex flex-col justify-between z-50">
+          <ToolBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} theme={theme} />
+          <div className="flex flex-col gap-2 items-center">
+            <HelpButton theme={theme} />
+            <UserMenu theme={theme} onToggleTheme={toggleTheme} />
+          </div>
+        </div>
+
+        {/* Ruler and Zoom Indicator */}
+        <div className={`absolute bottom-4 right-4 flex items-center space-x-4 px-3 py-2 rounded-lg z-50 ${
+          theme === 'dark'
+            ? 'bg-zinc-900 border border-zinc-700 text-white'
+            : 'bg-white border border-gray-300 text-gray-700 shadow-lg'
+        }`}>
+          <div className="flex items-center space-x-2 text-sm">
+            <span>📏</span>
+            <span>X: 0, Y: 0</span>
+          </div>
+          <div className={`w-px h-4 ${
+            theme === 'dark' ? 'bg-zinc-600' : 'bg-gray-300'
+          }`} />
+          <div className="flex items-center space-x-2 text-sm">
+            <span>🔍</span>
+            <span>100%</span>
+          </div>
         </div>
       </div>
 
-      {/* Ruler and Zoom Indicator */}
-      <div className={`absolute bottom-4 right-4 flex items-center space-x-4 px-3 py-2 rounded-lg z-50 ${
-        theme === 'dark'
-          ? 'bg-zinc-900 border border-zinc-700 text-white'
-          : 'bg-white border border-gray-300 text-gray-700 shadow-lg'
-      }`}>
-        <div className="flex items-center space-x-2 text-sm">
-          <span>📏</span>
-          <span>X: 0, Y: 0</span>
-        </div>
-        <div className={`w-px h-4 ${
-          theme === 'dark' ? 'bg-zinc-600' : 'bg-gray-300'
-        }`} />
-        <div className="flex items-center space-x-2 text-sm">
-          <span>🔍</span>
-          <span>100%</span>
-        </div>
-      </div>
-    </div>
+      <Toast 
+        message={toast.message} 
+        visible={toast.visible} 
+        variant={toast.variant}
+        onClose={() => setToast({ ...toast, visible: false })} 
+        theme={theme}
+      />
+    </>
   );
 }
 
