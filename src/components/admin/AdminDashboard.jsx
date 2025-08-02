@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   Users, 
+  User, 
   FolderOpen, 
   Settings, 
   BarChart3, 
@@ -196,6 +197,18 @@ export default function AdminDashboard() {
                   >
                     <Settings size={16} />
                     <span className="ml-3">Settings</span>
+                  </button>
+
+                  <button
+                    onClick={() => (window.location.href = '/')}
+                    className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
+                      theme === 'dark'
+                        ? 'text-gray-300 hover:bg-zinc-800 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <User size={16} />
+                    <span className="ml-3">User Panel</span>
                   </button>
 
                   <div className={`border-t my-1 ${

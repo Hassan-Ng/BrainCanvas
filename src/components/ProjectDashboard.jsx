@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Sparkles, FileText, Search, Users, MoreHorizontal, Layers, Home, FolderOpen, Clock, Star, Settings, User, ChevronDown, Sun, Moon, LogOut, HelpCircle, Heart, Trash2, Copy, Lock, Unlock, Compass, Folder, X } from 'lucide-react'
+import { Plus, Sparkles, FileText, Search, Users, MoreHorizontal, Layers, Home, FolderOpen, Clock, Star, Settings, User, ChevronDown, Sun, Moon, LogOut, HelpCircle, Heart, Trash2, Copy, Lock, Unlock, Compass, Folder, X, UserCog } from 'lucide-react'
 import { mockFolders } from '../data/folders'
 import CreateProjectModal from './CreateProjectModal'
 import CreateFolderModal from './CreateFolderModal'
@@ -411,6 +411,18 @@ export default function ProjectDashboard() {
                   >
                     <Settings size={16} />
                     <span className="ml-3">Settings</span>
+                  </button>
+
+                  <button
+                    onClick={() => (window.location.href = '/admin')}
+                    className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
+                      theme === 'dark'
+                        ? 'text-gray-300 hover:bg-zinc-800 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <UserCog size={16} />
+                    <span className="ml-3">Admin Panel</span>
                   </button>
 
                   <div className={`border-t my-1 ${
