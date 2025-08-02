@@ -414,7 +414,7 @@ export default function ProjectDashboard() {
                   </button>
 
                   <button
-                    onClick={() => (window.location.href = '/admin')}
+                    onClick={() => navigate('/admin')}
                     className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
                       theme === 'dark'
                         ? 'text-gray-300 hover:bg-zinc-800 hover:text-white'
