@@ -1,20 +1,8 @@
 import { useEffect, useState } from 'react';
 import { User, Settings, Sun, Moon, HelpCircle } from 'lucide-react';
 
-export default function UserMenu({ theme, onToggleTheme }) {
+export default function UserMenu({ theme, onToggleTheme, user }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser))
-      } catch (e) {
-        console.error('Failed to parse user from localStorage')
-      }
-    }
-  }, [])
 
   return (
     <div className="relative z-50">

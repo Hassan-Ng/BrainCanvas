@@ -8,6 +8,7 @@ import UserMenu from './UserMenu';
 import Header from './Header';
 import HelpButton from './HelpButton';
 import Toast from './Toast';
+import { MousePointer2 } from 'lucide-react';
 
 const socket = io('http://localhost:5000'); // Adjust if hosted elsewhere
 
@@ -24,6 +25,21 @@ function Canvas() {
   const [canvasData, setCanvasData] = useState({ shapes: [] });
 
   const [toast, setToast] = useState({ visible: false, message: '', variant: 'success' });
+  
+  const [cursors, setCursors] = useState({});
+
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+      } catch (e) {
+        console.error('Failed to parse user from localStorage')
+      }
+    }
+  }, [])
 
   const previousShapesRef = useRef([]);
 
@@ -32,6 +48,15 @@ function Canvas() {
   const [canEdit, setCanEdit] = useState(true);
   const { id: projectId } = useParams();
 
+  const randomColor = () => {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+      color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+  }
+
   useEffect(() => {
     socket.emit('join-room', projectId);
 
@@ -39,6 +64,21 @@ function Canvas() {
       console.log('Canvas update received:', data);
       // Update canvasData with the new shapes
       setCanvasData(data.canvasData);
+    });
+
+    socket.on('cursor-update', (data) => {
+      if (data.source === socket.id) return;
+      console.log('Cursor update received:', data);
+
+      setCursors(prev => ({
+        ...prev,
+        [data.source]: {
+          x: data.cursorData.x,
+          y: data.cursorData.y,
+          name: data.cursorData.name,
+          color: data.cursorData.color,
+        }
+      }));
     });
 
     return () => {
@@ -52,6 +92,26 @@ function Canvas() {
       roomId: projectId,
       data,
       source: socket.id,
+    });
+  };
+
+  const myColor = useRef(randomColor());
+  
+  const handleMouseMove = (e) => {
+    if (!canEdit) return;
+
+    const bounds = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - bounds.left;
+    const y = e.clientY - bounds.top;
+
+    socket.emit("cursor-update", {
+      roomId: projectId,
+      cursorData: {
+        x,
+        y,
+        name: user ? `${user.firstName} ${user.lastName}` : 'Guest User', // Replace with actual user name if available
+        color: myColor.current, // Random color for each cursor
+      }
     });
   };
 
@@ -180,26 +240,28 @@ function Canvas() {
       <div className={`w-full h-screen relative transition-colors duration-300 ${
         theme === 'dark' ? 'bg-[#171717]' : 'bg-gray-100'
       }`}>
-        <Whiteboard 
-          selectedTool={selectedTool} 
-          style={style} 
-          theme={theme}
-          initialShapes={canvasData.shapes || []}
-          readOnly={false}
-          onShapesChange={(shapes) => {
-            const prev = JSON.stringify(previousShapesRef.current);
-            const curr = JSON.stringify(shapes);
-          
-            if (prev !== curr) {
-              previousShapesRef.current = shapes;
-              canEdit ? setCanvasData({ shapes }) : '';
-              canEdit ? sendCanvasUpdate({ shapes }) : '';
-            }
-          }}
-          socket={socket}
-          projectId={project._id}
-          canEdit={canEdit}     
-        />
+        <div onMouseMove={handleMouseMove} className="w-full h-full relative">
+          <Whiteboard 
+            selectedTool={selectedTool} 
+            style={style} 
+            theme={theme}
+            initialShapes={canvasData.shapes || []}
+            readOnly={false}
+            onShapesChange={(shapes) => {
+              const prev = JSON.stringify(previousShapesRef.current);
+              const curr = JSON.stringify(shapes);
+            
+              if (prev !== curr) {
+                previousShapesRef.current = shapes;
+                canEdit ? setCanvasData({ shapes }) : '';
+                canEdit ? sendCanvasUpdate({ shapes }) : '';
+              }
+            }}
+            socket={socket}
+            projectId={project._id}
+            canEdit={canEdit}
+          />
+        </div>
         
         {canEdit && (
           <ColorPanel onChange={(newStyle) => setStyle(newStyle)} theme={theme} />
@@ -213,7 +275,7 @@ function Canvas() {
           )}
           <div className="flex flex-col gap-2 items-center mt-auto">
             <HelpButton theme={theme} />
-            <UserMenu theme={theme} onToggleTheme={toggleTheme} />
+            <UserMenu theme={theme} onToggleTheme={toggleTheme} user={user} />
           </div>
         </div>
 
@@ -244,6 +306,34 @@ function Canvas() {
         onClose={() => setToast({ ...toast, visible: false })} 
         theme={theme}
       />
+
+      {/* Cursor Display */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        {Object.entries(cursors).map(([socketId, cursor]) => (
+          <div 
+            key={socketId} 
+            className="absolute pointer-events-none"
+            style={{
+              left: cursor.x,
+              top: cursor.y,
+              fontSize: '12px',
+              // choose a random bg color for each cursor
+            }}
+          >
+            <MousePointer2
+              className="text-white"
+              size={20}
+              style={{ fill: cursor.color, stroke: cursor.color }}
+            />
+            <span
+              className="px-2 py-1 rounded-md text-xs font-medium text-[#171717] ml-4"
+              style={{ backgroundColor: cursor.color }}
+            >
+              {cursor.name}
+            </span>
+          </div>
+        ))}
+      </div>
     </>
   );
 }

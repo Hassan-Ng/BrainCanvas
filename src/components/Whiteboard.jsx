@@ -119,7 +119,7 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
         } else if (e.key === 'Escape') {
           setEditingTextId(null);
           setKeyboardText('');
-        } else if (e.key.length === 1) {
+        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
           if (selectedIds.includes(editingTextId)) {
             setKeyboardText(prev => prev + e.key);
           }
@@ -389,8 +389,7 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
         type: 'text',
         text: '',
         fontSize: 24,
-        fill: style.fill,
-        stroke: style.stroke,
+        fill: style.stroke,
         strokeWidth: style.strokeWidth
       };
       setEditingTextId(id);
@@ -431,6 +430,8 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
   };
 
   const handleMouseMove = (e) => {
+    // onMouseMove && onMouseMove(e);
+
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
