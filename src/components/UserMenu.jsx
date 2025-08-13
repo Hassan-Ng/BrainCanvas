@@ -1,8 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { User, Settings, Sun, Moon, HelpCircle } from 'lucide-react';
 
 export default function UserMenu({ theme, onToggleTheme }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+      } catch (e) {
+        console.error('Failed to parse user from localStorage')
+      }
+    }
+  }, [])
 
   return (
     <div className="relative z-50">
@@ -10,14 +22,26 @@ export default function UserMenu({ theme, onToggleTheme }) {
         {/* User Avatar */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${
+          className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center transition-all duration-200 ${
             theme === 'dark'
               ? 'bg-zinc-800 border border-zinc-600 text-white hover:bg-zinc-700'
               : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-lg'
           }`}
           title="User menu"
         >
-          <User size={18} />
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt="Profile"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="flex items-center justify-center w-full h-full">
+              <User className={`w-4 h-4 ${
+                theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
+              }`} />
+            </div>
+          )}
         </button>
 
         {/* Dropdown Menu */}
@@ -41,21 +65,33 @@ export default function UserMenu({ theme, onToggleTheme }) {
                   theme === 'dark' ? 'border-zinc-700' : 'border-gray-200'
                 }`}>
                   <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center ${
                       theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-100'
                     }`}>
-                      <User size={16} className={theme === 'dark' ? 'text-white' : 'text-gray-600'} />
+                      {user?.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center w-full h-full">
+                          <User className={`w-4 h-4 ${
+                            theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
+                          }`} />
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className={`text-sm font-medium ${
                         theme === 'dark' ? 'text-white' : 'text-gray-900'
                       }`}>
-                        Guest User
+                        {user ? `${user.firstName} ${user.lastName}` : 'Guest User'}
                       </div>
                       <div className={`text-xs ${
                         theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                       }`}>
-                        Local session
+                        {user ? user.email : 'Local session'}
                       </div>
                     </div>
                   </div>

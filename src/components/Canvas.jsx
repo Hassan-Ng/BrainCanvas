@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import Whiteboard from './Whiteboard';
 import ToolBar from './ToolBar';
 import ColorPanel from './ColorPanel';
 import UserMenu from './UserMenu';
 import Header from './Header';
 import HelpButton from './HelpButton';
-import { mockProjects } from '../data/projects';
 import Toast from './Toast';
+
+const socket = io('http://localhost:5000'); // Adjust if hosted elsewhere
 
 function Canvas() {
   const { id } = useParams();
@@ -26,12 +28,36 @@ function Canvas() {
   const previousShapesRef = useRef([]);
 
   // Always allow editing since there's no user management
-  const canEdit = true;
-  const mode = 'editor';
+  // const canEdit = true;
+  const [canEdit, setCanEdit] = useState(true);
+  const { id: projectId } = useParams();
+
+  useEffect(() => {
+    socket.emit('join-room', projectId);
+
+    socket.on('canvas-update', (data) => {
+      console.log('Canvas update received:', data);
+      // Update canvasData with the new shapes
+      setCanvasData(data.canvasData);
+    });
+
+    return () => {
+      socket.off('canvas-update');
+      socket.emit('leave-room', projectId);
+    };
+  }, [projectId]);
+
+  const sendCanvasUpdate = (data) => {
+    socket.emit('canvas-update', {
+      roomId: projectId,
+      data,
+      source: socket.id,
+    });
+  };
 
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
-    if (!project || !project._id) return;
+    if (!canEdit || !project || !project._id) return;
   
     // Clear any previously scheduled save
     if (saveTimeoutRef.current) {
@@ -73,7 +99,8 @@ function Canvas() {
     const fetchProject = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${id}`, {
+        // const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${id}`, {
+        const res = await fetch(`http://localhost:5000/api/projects/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -91,8 +118,10 @@ function Canvas() {
         }
   
         const data = await res.json();
+        
         setProject(data);
         setCanvasData(data.canvasData || { shapes: [] });
+        setCanEdit(data.canEdit); // Default to true if not specified
       } catch (err) {
         console.error(err);
         setError('An error occurred while fetching the project');
@@ -163,18 +192,26 @@ function Canvas() {
           
             if (prev !== curr) {
               previousShapesRef.current = shapes;
-              setCanvasData({ shapes });
+              canEdit ? setCanvasData({ shapes }) : '';
+              canEdit ? sendCanvasUpdate({ shapes }) : '';
             }
-          }}        
+          }}
+          socket={socket}
+          projectId={project._id}
+          canEdit={canEdit}     
         />
         
-        <ColorPanel onChange={(newStyle) => setStyle(newStyle)} theme={theme} />
+        {canEdit && (
+          <ColorPanel onChange={(newStyle) => setStyle(newStyle)} theme={theme} />
+        )}
         
         <Header theme={theme} project={project} />
         
         <div className="absolute top-20 bottom-3 left-3 flex flex-col justify-between z-50">
-          <ToolBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} theme={theme} />
-          <div className="flex flex-col gap-2 items-center">
+          {canEdit && (
+            <ToolBar selectedTool={selectedTool} setSelectedTool={setSelectedTool} theme={theme} />
+          )}
+          <div className="flex flex-col gap-2 items-center mt-auto">
             <HelpButton theme={theme} />
             <UserMenu theme={theme} onToggleTheme={toggleTheme} />
           </div>

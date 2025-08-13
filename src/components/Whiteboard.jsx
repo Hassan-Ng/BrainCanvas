@@ -2,7 +2,7 @@ import React from 'react';
 import { Stage, Layer, Rect, Ellipse, Text, Transformer, Arrow, Line } from 'react-konva';
 import { useState, useRef, useEffect } from 'react';
 
-export default function Whiteboard({ selectedTool, style, theme = 'dark', initialShapes = [], readOnly = false, onShapesChange }) {
+export default function Whiteboard({ selectedTool, style, theme = 'dark', initialShapes = [], readOnly = false, onShapesChange, canEdit, socket, projectId }) {
   const [shapes, setShapes] = useState([]);
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -22,9 +22,12 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
   const prevToolRef = useRef(selectedTool);
   const [keyboardText, setKeyboardText] = useState('');
 
-  // Initialize shapes from props
   useEffect(() => {
-    if (initialShapes.length > 0) {
+    console.log('initialShapes changed');
+
+    if (JSON.stringify(shapes) === JSON.stringify(initialShapes)) {
+      return; // no real change
+    } else if (initialShapes.length > 0) {
       setShapes(initialShapes);
     }
   }, [initialShapes]);
@@ -43,14 +46,14 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
     const upHandler = (e) => {
       if (e.code === 'Space') setIsPanning(false);
     };
-  
+
     window.addEventListener('keydown', downHandler);
     window.addEventListener('keyup', upHandler);
     return () => {
       window.removeEventListener('keydown', downHandler);
       window.removeEventListener('keyup', upHandler);
     };
-  }, []);  
+  }, []);
 
   useEffect(() => {
     if (prevToolRef.current !== selectedTool) {
@@ -71,7 +74,7 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
     const stage = stageRef.current;
     if (!stage) return;
     const container = stage.container();
-  
+
     if (isPanning) {
       container.style.cursor = 'grab';
     } else if (selectedTool === 'text') {
@@ -83,7 +86,7 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
     } else {
       container.style.cursor = 'crosshair';
     }
-  }, [selectedTool, isPanning]);  
+  }, [selectedTool, isPanning]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -189,15 +192,16 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
         return s;
       })
     );
+    // sendCanvasData(shapes, newShape);
   };
 
   const renderShape = (shape) => {
     const isSelected = selectedIds.includes(shape.id);
-    const draggable = selectedTool === 'pointer';
-    
+    const draggable = selectedTool === 'pointer' && canEdit;
+
     // Don't spread the key prop
     const { key, ...shapeProps } = shape;
-    
+
     const commonProps = {
       id: shape.id,
       ...shapeProps,
@@ -235,9 +239,13 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
         }
         e.target.moveToTop();
       },
+      onDragMove: (e) => {
+        const x = e.target.x();
+        const y = e.target.y();
+        updateShapePosition(shape.id, x, y);
+      },
       onDragEnd: (e) => {
-        pushToHistory();
-        updateShapePosition(shape.id, e.target.x(), e.target.y());
+        pushToHistory(); // Keep undo/redo only here
       },
       onTransformEnd: (e) => handleTransformEnd(shape, e.target),
     };
@@ -248,25 +256,25 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
     if (shape.type === 'arrow') {
       const points = shape.points || [0, 0, 0, 0];
       const [startX, startY, endX, endY] = points;
-      
+
       // Simple L-shaped arrow
       const cornerRadius = 10;
       const arrowHeadSize = 12;
-      
+
       // Always go horizontal first, then vertical
       const midX = endX;
       const midY = startY;
-      
+
       // Create the L-shaped path
       const pathPoints = [startX, startY, midX, midY, endX, endY];
-      
+
       // Arrow head points down (vertical direction)
       const arrowHeadPoints = [
-        endX - arrowHeadSize/2, endY - arrowHeadSize,
+        endX - arrowHeadSize / 2, endY - arrowHeadSize,
         endX, endY,
-        endX + arrowHeadSize/2, endY - arrowHeadSize
+        endX + arrowHeadSize / 2, endY - arrowHeadSize
       ];
-      
+
       return (
         <React.Fragment key={commonProps.id}>
           <Line
@@ -323,9 +331,9 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
 
   const handleMouseDown = (e) => {
     if (readOnly) return;
-    
+
     if (isPanning) return;
-    
+
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
     const clickedTransformer = e.target.findAncestor('Transformer');
@@ -354,7 +362,7 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
     const id = `${selectedTool}-${Date.now()}`;
     const base = { id, x: adjustedPointer.x, y: adjustedPointer.y, startX: adjustedPointer.x, startY: adjustedPointer.y };
     let shape;
-    
+
     if (selectedTool === 'rectangle') {
       shape = {
         ...base,
@@ -538,9 +546,9 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
         ref={stageRef}
         width={window.innerWidth}
         height={window.innerHeight}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        onMouseDown={canEdit ? handleMouseDown : null}
+        onMouseMove={canEdit ? handleMouseMove : null}
+        onMouseUp={canEdit ? handleMouseUp : null}
         scaleX={stageScale}
         scaleY={stageScale}
         x={stagePosition.x}
@@ -589,15 +597,17 @@ export default function Whiteboard({ selectedTool, style, theme = 'dark', initia
               stroke="#00A9E5"
             />
           )}
-          <Transformer
-            ref={transformerRef}
-            rotateEnabled={true}
-            enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']}
-            boundBoxFunc={(oldBox, newBox) => {
-              if (newBox.width < 5 || newBox.height < 5) return oldBox;
-              return newBox;
-            }}
-          />
+          {canEdit && (
+            <Transformer
+              ref={transformerRef}
+              rotateEnabled={true}
+              enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']}
+              boundBoxFunc={(oldBox, newBox) => {
+                if (newBox.width < 5 || newBox.height < 5) return oldBox;
+                return newBox;
+              }}
+            />
+          )}
         </Layer>
       </Stage>
     </>
