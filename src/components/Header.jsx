@@ -106,11 +106,11 @@ export default function Header({ theme, project }) {
                           • Invite only
                         </span>
                       </>
-                    )}
+                    )}      
                   </div>
 
                   {/* Active Users */}
-                  <div className="mb-4">
+                  {/* <div className="mb-4">
                     <div className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       Active Users ({project.collaborators.filter(c => c.active).length})
                     </div>
@@ -136,7 +136,7 @@ export default function Header({ theme, project }) {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* All Collaborators (for private projects) */}
                   {!project.isPublic && (
@@ -159,18 +159,11 @@ export default function Header({ theme, project }) {
                             </div>
                             <div>
                               <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                {user.name}
+                                {user.firstName} {user.lastName}
                               </div>
                               <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                                 {user.email}
                               </div>
-                            </div>
-                            <div className={`ml-auto text-xs ${
-                              user.active 
-                                ? 'text-green-500' 
-                                : theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
-                            }`}>
-                              {user.active ? 'Online' : 'Offline'}
                             </div>
                           </div>
                         ))}

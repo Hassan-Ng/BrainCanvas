@@ -68,7 +68,7 @@ export default function ProjectDashboard() {
           return;
         }
   
-        const response = await fetch('https://braincanvasapi-production.up.railway.app/api/projects', {
+        const response = await fetch('http://localhost:5000/api/projects', {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -174,7 +174,7 @@ export default function ProjectDashboard() {
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${projectId}`, {
+      const res = await fetch(`http://localhost:5000/api/projects/${projectId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -198,7 +198,7 @@ export default function ProjectDashboard() {
   const handleToggleFavorite = async (projectId) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${projectId}/favorite`, {
+      const res = await fetch(`http://localhost:5000/api/projects/${projectId}/favorite`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -235,7 +235,7 @@ export default function ProjectDashboard() {
         throw new Error('No token found. User not authenticated.')
       }
   
-      const response = await fetch('https://braincanvasapi-production.up.railway.app/api/projects', {
+      const response = await fetch('http://localhost:5000/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ export default function ProjectDashboard() {
           name: projectData.name,
           description: projectData.description || '',
           isPublic: projectData.isPublic || false,
-          collaboratorIds: [] // optional: you can pass selected user IDs here
+          collaboratorIds: projectData.collaborators.map(collaborator => collaborator.id) // optional: you can pass selected user IDs here
         })
       })
   
@@ -255,6 +255,9 @@ export default function ProjectDashboard() {
       }
   
       const newProject = await response.json()
+
+      newProject.author = newProject.author || {};
+      newProject.author.avatar = user?.avatar;
   
       // Add to local state (optional if you refetch the full list after creation)
       setProjects(prev => [newProject, ...prev])
@@ -684,7 +687,7 @@ export default function ProjectDashboard() {
               )}
 
               {/* Projects Table Header */}
-              <div className={`grid grid-cols-12 gap-4 px-4 py-3 text-xs font-medium uppercase tracking-wider border-b ${
+              <div className={`grid grid-cols-11 gap-4 px-4 py-3 text-xs font-medium uppercase tracking-wider border-b ${
                 theme === 'dark'
                   ? 'text-zinc-400 border-zinc-800'
                   : 'text-gray-500 border-gray-200'
@@ -693,7 +696,6 @@ export default function ProjectDashboard() {
                 <div className="col-span-2">Location</div>
                 <div className="col-span-2">Created</div>
                 <div className="col-span-2">Edited</div>
-                <div className="col-span-1">Comments</div>
                 <div className="col-span-1">{activeTab === 'Explore' ? 'Author' : 'Owner'}</div>
               </div>
 
@@ -704,7 +706,7 @@ export default function ProjectDashboard() {
                     key={project.id}
                     onClick={() => handleOpenProject(project)}
                     onContextMenu={(e) => handleContextMenu(e, project)}
-                    className={`grid grid-cols-12 gap-4 px-4 py-4 rounded-lg cursor-pointer transition-colors group ${
+                    className={`grid grid-cols-11 gap-4 px-4 py-4 rounded-lg cursor-pointer transition-colors group ${
                       theme === 'dark'
                         ? 'hover:bg-zinc-800/50'
                         : 'hover:bg-gray-50'
@@ -771,32 +773,24 @@ export default function ProjectDashboard() {
                     }`}>
                       {project.edited}
                     </div>
-                    <div className={`col-span-1 flex items-center text-sm ${
-                      theme === 'dark' ? 'text-zinc-400' : 'text-gray-600'
-                    }`}>
-                      {project.comments}
-                    </div>
                     <div className="col-span-1 flex items-center justify-between">
-                      <div className={`w-6 h-6 rounded-full ${
-                        theme === 'dark' ? 'bg-zinc-600' : 'bg-gray-300'
-                      }`}></div>
-                      {activeTab !== 'Explore' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleContextMenu(e, project)
-                          }}
-                          className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${
-                            theme === 'dark'
-                              ? 'hover:bg-zinc-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <MoreHorizontal className={`w-4 h-4 ${
-                            theme === 'dark' ? 'text-zinc-400' : 'text-gray-500'
-                          }`} />
-                        </button>
-                      )}
+                      <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center ${
+                        theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-100'
+                      }`}>
+                        {project.author?.avatar ? (
+                          <img
+                            src={project.author.avatar}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center w-full h-full">
+                            <User className={`w-4 h-4 ${
+                              theme === 'dark' ? 'text-zinc-300' : 'text-gray-600'
+                            }`} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -949,16 +943,6 @@ export default function ProjectDashboard() {
             }`} />
             {contextMenu.project.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           </button>
-          <button
-            className={`w-full flex items-center px-4 py-2 text-sm transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-300 hover:bg-zinc-800 hover:text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Copy className="w-4 h-4 mr-3" />
-            Duplicate
-          </button>
 
           {/* ✅ Show Delete only if user is author */}
           {user && contextMenu.project.authorId === user._id && (
@@ -977,7 +961,7 @@ export default function ProjectDashboard() {
                     onConfirm: async () => {
                       const token = localStorage.getItem('token');
                       try {
-                        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${contextMenu.project.id}`, {
+                        const res = await fetch(`http://localhost:5000/api/projects/${contextMenu.project.id}`, {
                           method: 'PUT',
                           headers: {
                             'Content-Type': 'application/json',
@@ -1034,7 +1018,7 @@ export default function ProjectDashboard() {
                     onConfirm: async () => {
                       const token = localStorage.getItem('token');
                       try {
-                        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${project.id}`, {
+                        const res = await fetch(`http://localhost:5000/api/projects/${project.id}`, {
                           method: 'DELETE',
                           headers: {
                             Authorization: `Bearer ${token}`,
@@ -1103,7 +1087,7 @@ export default function ProjectDashboard() {
                 onClick={async () => {
                   const token = localStorage.getItem('token');
                   try {
-                    const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${projectToDelete.id}`, {
+                    const res = await fetch(`http://localhost:5000/api/projects/${projectToDelete.id}`, {
                       method: 'DELETE',
                       headers: {
                         Authorization: `Bearer ${token}`,

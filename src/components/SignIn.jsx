@@ -22,7 +22,7 @@ export default function SignIn({ theme = 'dark' }) {
     
     // API call to sign in
     try {
-      const res = await fetch("https://braincanvasapi-production.up.railway.app/api/auth/signin", {
+      const res = await fetch("http://localhost:5000/api/auth/signin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

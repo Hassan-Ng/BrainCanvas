@@ -130,7 +130,7 @@ function Canvas() {
       if (!token) return;
   
       try {
-        const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${project._id}`, {
+        const res = await fetch(`http://localhost:5000/api/projects/${project._id}`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -159,7 +159,7 @@ function Canvas() {
     const fetchProject = async () => {
       try {
         const token = localStorage.getItem('token');
-        // const res = await fetch(`https://braincanvasapi-production.up.railway.app/api/projects/${id}`, {
+        // const res = await fetch(`http://localhost:5000/api/projects/${id}`, {
         const res = await fetch(`http://localhost:5000/api/projects/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`
@@ -178,6 +178,9 @@ function Canvas() {
         }
   
         const data = await res.json();
+
+        console.log(data);
+        
         
         setProject(data);
         setCanvasData(data.canvasData || { shapes: [] });

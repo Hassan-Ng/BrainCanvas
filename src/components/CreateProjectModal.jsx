@@ -18,7 +18,7 @@ export default function CreateProjectModal({ onClose, onCreateProject, theme = '
         const token = localStorage.getItem('token');
         const currentUser = JSON.parse(localStorage.getItem('user')); // get current user from localStorage
         
-        const res = await fetch('https://braincanvasapi-production.up.railway.app/api/users', {
+        const res = await fetch('http://localhost:5000/api/users', {
           headers: {
             Authorization: `Bearer ${token}`
           }
